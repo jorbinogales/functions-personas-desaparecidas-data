@@ -1,16 +1,18 @@
 import { runDesaparecidos } from "./collectors/desaparecidos.js";
 import { runNoticias } from "./collectors/noticias.js";
 import { runMapa } from "./collectors/mapa.js";
+import { runUnidos } from "./collectors/unidos.js";
 import { storageInfo } from "./store.js";
 
 const COLLECTORS: Record<string, () => Promise<unknown>> = {
   desaparecidos: runDesaparecidos,
   noticias: runNoticias,
   mapa: runMapa,
+  unidos: runUnidos,
 };
 
 async function main(): Promise<void> {
-  const which = (process.env.COLLECTORS ?? "desaparecidos,noticias,mapa")
+  const which = (process.env.COLLECTORS ?? "desaparecidos,noticias,mapa,unidos")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);

@@ -70,6 +70,35 @@ export interface Noticia {
   vigente: boolean;
 }
 
+/**
+ * Un punto del mapa de unidosvenezuela.io. La data viene del agregador público
+ * `agg.unidosvenezuela.io/search` (contexto: terremoto Venezuela 2026).
+ */
+export interface UnidosPoint {
+  id: string; // UUID del agregador (estable, no hace falta hashear)
+  source: string | null; // tuia911 | terremotovenezuela | sosvenezuela
+  tipo: string | null; // suministros | acopio | dano_estructural | persona_buscada | critica | sin_luz | otro
+  estadoReporte: string | null; // campo "estado" del agregador (p. ej. "activo")
+  titulo: string | null;
+  descripcion: string | null;
+  necesidad: string | null;
+  lat: number | null;
+  lng: number | null;
+  estadoGeo: string | null; // estado venezolano (estado_geo) o "Por confirmar"
+  direccion: string | null;
+  personaNombre: string | null; // persona_nombre (dato sensible)
+  mediaUrl: string | null; // media_url
+
+  // Marcas de tiempo del propio agregador:
+  apiFirstSeenAt: string | null; // first_seen_at
+  apiLastSeenAt: string | null; // last_seen_at
+
+  // Metadatos de nuestro scraping (impulsan el cálculo de delta del bucket):
+  firstSeenAt: string; // ISO: primera vez que LO vimos nosotros
+  lastSeenAt: string; // ISO: última vez visto en /search
+  vigente: boolean;
+}
+
 /** Un punto de interés del /mapa. */
 export interface MapaPoint {
   id: string; // hash de lat|lng|title

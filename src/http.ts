@@ -30,3 +30,31 @@ export async function fetchHtml(url: string, retries = 3): Promise<string> {
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
+/**
+ * Descarga y parsea JSON de una URL con reintentos (misma política que fetchHtml).
+ * Lanza si nunca responde OK.
+ */
+export async function fetchJson<T = unknown>(
+  url: string,
+  retries = 3,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "user-agent": USER_AGENT, accept: "application/json" },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.status === 429 || res.status >= 500) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status} para ${url}`);
+      return (await res.json()) as T;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await sleep(1500 * attempt);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
