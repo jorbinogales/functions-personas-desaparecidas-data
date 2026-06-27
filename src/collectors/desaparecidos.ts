@@ -49,6 +49,7 @@ export interface DesaparecidosSummary {
   nuevos: number;
   cambios: number;
   enriquecidos: number;
+  dtvMerged: number;
 }
 
 export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
@@ -96,6 +97,7 @@ export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
         if (!existing) {
           const r: Report = {
             id: c.id,
+            origen: "venezuelareporta",
             url: c.url,
             nombre: c.nombre,
             edad: c.edad,
@@ -162,6 +164,23 @@ export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
     }
   }
 
+  // Fusiona la fuente externa dtv (escrita por el colector de navegador) en la
+  // lista unificada. dtv-items.json tiene un único escritor (ese colector), así
+  // que aquí sólo leemos y volcamos en items.json (del que somos único escritor).
+  let dtvMerged = 0;
+  try {
+    const dtv = await section.loadOther<Report>("dtv-items.json");
+    if (dtv) {
+      for (const [id, r] of Object.entries(dtv)) {
+        const ex = store[id];
+        store[id] = ex ? { ...r, firstSeenAt: ex.firstSeenAt } : r;
+        dtvMerged++;
+      }
+    }
+  } catch (err) {
+    console.warn(`  ! merge dtv falló: ${(err as Error).message}`);
+  }
+
   await section.saveItems(store);
 
   const summary: DesaparecidosSummary = {
@@ -174,6 +193,7 @@ export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
     nuevos: nuevos.length,
     cambios: cambios.length,
     enriquecidos,
+    dtvMerged,
   };
 
   if (nuevos.length > 0 || cambios.length > 0) {

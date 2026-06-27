@@ -110,6 +110,13 @@ export class Section {
     const raw = await backend.read(this.k("items.json"));
     return raw ? (JSON.parse(raw) as Record<string, T>) : {};
   }
+  /** Lee otro archivo de la sección (p. ej. "dtv-items.json"); null si no existe. */
+  async loadOther<T = unknown>(
+    filename: string,
+  ): Promise<Record<string, T> | null> {
+    const raw = await backend.read(this.k(filename));
+    return raw ? (JSON.parse(raw) as Record<string, T>) : null;
+  }
   async saveItems(items: Record<string, unknown>): Promise<void> {
     await backend.write(this.k("items.json"), JSON.stringify(items));
   }

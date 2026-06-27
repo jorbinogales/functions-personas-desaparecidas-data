@@ -17,7 +17,8 @@ export interface StatusChange {
 
 /** Un reporte de persona desaparecida tal como lo guardamos. */
 export interface Report {
-  id: string; // UUID del reporte
+  id: string; // UUID del reporte (o "dtv:<id>" para fuentes externas)
+  origen?: string; // "venezuelareporta" | "dtv" | ...
   url: string; // URL absoluta a la página de detalle
   nombre: string;
   edad: number | null;
