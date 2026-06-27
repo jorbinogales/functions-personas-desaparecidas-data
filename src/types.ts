@@ -55,3 +55,30 @@ export interface RunSummary {
   }[];
   enriquecidos: number;
 }
+
+/** Una noticia de la sección /noticias. */
+export interface Noticia {
+  id: string; // hash de la URL
+  titulo: string;
+  url: string;
+  fuente: string | null;
+  fecha: string | null; // texto relativo, p. ej. "27 jun"
+  tab: string; // news | social | videos
+  firstSeenAt: string;
+  lastSeenAt: string;
+  vigente: boolean;
+}
+
+/** Un punto de interés del /mapa. */
+export interface MapaPoint {
+  id: string; // hash de lat|lng|title
+  lat: number;
+  lng: number;
+  title: string;
+  subtitle: string | null;
+  kind: string; // edificio | acopio | emergencia | ...
+  fuente: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  vigente: boolean;
+}

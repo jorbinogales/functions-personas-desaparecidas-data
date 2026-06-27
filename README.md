@@ -1,10 +1,19 @@
 # Venezuela Reporta — Scraper de desaparecidos
 
-Recopila los reportes de personas desaparecidas de
-[venezuelareporta.org](https://venezuelareporta.org/buscar) y los guarda como
-**JSON** en un **Bucket de Railway** (S3-compatible). Pensado para correr como
-**cron job cada hora**, detectando entradas nuevas y cambios de estado
-(Se busca → Encontrado / A salvo).
+Recopila información de [venezuelareporta.org](https://venezuelareporta.org) y la
+guarda como **JSON seccionado** en un **Bucket de Railway** (S3-compatible).
+Corre como **cron job cada 30 minutos**. Tres secciones:
+
+- **`desaparecidos/`** — reportes de personas (Se busca / Encontrado / A salvo),
+  con detección de entradas nuevas y cambios de estado.
+- **`noticias/`** — lista de noticias (título, fuente, fecha, URL) de las
+  pestañas news / social / videos.
+- **`mapa/`** — puntos de interés con coordenadas (`lat`, `lng`, `title`,
+  `kind`: edificio / acopio / emergencia, `fuente`).
+
+Cada sección guarda en el bucket: `<seccion>/items.json` (dataset completo
+keyado por id) + `<seccion>/state.json` (resumen última corrida) +
+`<seccion>/changes/<runId>.json` (diff de cada corrida).
 
 > El almacenamiento es intercambiable: si están las variables `BUCKET_*` usa el
 > Railway Bucket (S3); si no, escribe en filesystem (`DATA_DIR`, p. ej. un Volume
@@ -75,8 +84,10 @@ $env:FULL_SCAN="1"; $env:ENRICH_NEW="0"; npm start
 3. **Conéctalo al servicio**: en el servicio → **Variables** usa la opción de
    auto-inyectar las credenciales del bucket (`BUCKET_NAME`, `BUCKET_ENDPOINT`,
    `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_REGION`).
-4. **Cron**: ya viene en `railway.json` (`cronSchedule: "0 * * * *"`, cada hora,
-   `restartPolicyType: NEVER`). También se puede fijar en *Settings → Cron*.
+4. **Cron**: `railway.json` trae `cronSchedule: "*/30 * * * *"` (cada 30 min) y
+   `restartPolicyType: NEVER`. Nota: el cron de `railway.json` no siempre activa
+   el scheduler; si `nextCronRunAt` queda vacío, fíjalo en *Settings → Cron* o vía
+   la API (`serviceInstanceUpdate`).
 5. **Backfill inicial**: antes de dejar el cron, corre una vez con
    `FULL_SCAN=1` y `ENRICH_NEW=0` para llenar el dataset rápido
    (son ~1000+ páginas). Luego quita esas variables y deja el cron horario.

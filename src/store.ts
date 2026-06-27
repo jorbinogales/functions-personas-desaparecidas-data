@@ -5,13 +5,6 @@ import {
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
-import type { Report } from "./types.js";
-
-export type Store = Record<string, Report>;
-
-const REPORTS_KEY = "reports.json";
-const STATE_KEY = "state.json";
-const changesKey = (runId: string): string => `changes/${runId}.json`;
 
 /** Abstracción de almacenamiento: bucket S3 (Railway) o filesystem (Volume/local). */
 interface Backend {
@@ -48,7 +41,7 @@ class S3Backend implements Backend {
   private readonly client: S3Client;
   constructor(private readonly bucket: string) {
     this.client = new S3Client({
-      region: process.env.BUCKET_REGION ?? "us-east-1",
+      region: process.env.BUCKET_REGION ?? "auto",
       endpoint: process.env.BUCKET_ENDPOINT,
       forcePathStyle: true,
       credentials: {
@@ -84,7 +77,6 @@ class S3Backend implements Backend {
   }
 }
 
-/** Usa el bucket si están sus variables; si no, filesystem. */
 function pickBackend(): Backend {
   const bucket = process.env.BUCKET_NAME;
   if (
@@ -104,22 +96,30 @@ function pickBackend(): Backend {
 const backend = pickBackend();
 export const storageInfo: string = backend.describe();
 
-export async function loadStore(): Promise<Store> {
-  const raw = await backend.read(REPORTS_KEY);
-  return raw ? (JSON.parse(raw) as Store) : {};
-}
-
-export async function saveStore(store: Store): Promise<void> {
-  await backend.write(REPORTS_KEY, JSON.stringify(store));
-}
-
-export async function writeChanges(
-  runId: string,
-  summary: unknown,
-): Promise<void> {
-  await backend.write(changesKey(runId), JSON.stringify(summary, null, 2));
-}
-
-export async function writeState(state: unknown): Promise<void> {
-  await backend.write(STATE_KEY, JSON.stringify(state, null, 2));
+/**
+ * Una sección de datos (desaparecidos, noticias, mapa). Cada una vive bajo su
+ * propio prefijo en el bucket: `${name}/items.json`, `${name}/state.json`,
+ * `${name}/changes/<runId>.json`.
+ */
+export class Section {
+  constructor(public readonly name: string) {}
+  private k(key: string): string {
+    return `${this.name}/${key}`;
+  }
+  async loadItems<T = unknown>(): Promise<Record<string, T>> {
+    const raw = await backend.read(this.k("items.json"));
+    return raw ? (JSON.parse(raw) as Record<string, T>) : {};
+  }
+  async saveItems(items: Record<string, unknown>): Promise<void> {
+    await backend.write(this.k("items.json"), JSON.stringify(items));
+  }
+  async writeChanges(runId: string, summary: unknown): Promise<void> {
+    await backend.write(
+      this.k(`changes/${runId}.json`),
+      JSON.stringify(summary, null, 2),
+    );
+  }
+  async writeState(state: unknown): Promise<void> {
+    await backend.write(this.k("state.json"), JSON.stringify(state, null, 2));
+  }
 }

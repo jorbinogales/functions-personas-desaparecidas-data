@@ -1,14 +1,9 @@
-import { fetchHtml, sleep } from "./http.js";
-import { BASE_URL, parseDetail, parseListing } from "./parse.js";
-import {
-  loadStore,
-  saveStore,
-  storageInfo,
-  writeChanges,
-  writeState,
-  type Store,
-} from "./store.js";
-import { ESTADOS, type Report, type RunSummary } from "./types.js";
+import { fetchHtml, sleep } from "../http.js";
+import { BASE_URL, parseDetail, parseListing } from "../parse.js";
+import { Section } from "../store.js";
+import { ESTADOS, type Report } from "../types.js";
+
+const section = new Section("desaparecidos");
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -25,7 +20,6 @@ const cfg = {
   enrichBatch: envInt("ENRICH_BATCH", 0),
 };
 
-/** Trae la página de detalle y completa los campos extra del reporte. */
 async function enrich(r: Report): Promise<void> {
   try {
     const html = await fetchHtml(r.url);
@@ -45,23 +39,36 @@ async function enrich(r: Report): Promise<void> {
   }
 }
 
-/** Ejecuta UN ciclo completo de scraping y persiste resultados. */
-export async function runOnce(): Promise<RunSummary> {
+export interface DesaparecidosSummary {
+  section: "desaparecidos";
+  runId: string;
+  runAt: string;
+  durationMs: number;
+  pagesFetched: number;
+  total: number;
+  nuevos: number;
+  cambios: number;
+  enriquecidos: number;
+}
+
+export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
   const startedAt = Date.now();
   const runAt = new Date().toISOString();
   const runId = runAt.replace(/[:.]/g, "-");
 
-  const store: Store = await loadStore();
+  const store = await section.loadItems<Report>();
   const firstRun = Object.keys(store).length === 0;
   const fullScan = cfg.fullScan || firstRun;
 
   const nuevos: Report[] = [];
-  const cambiosEstado: RunSummary["cambiosEstado"] = [];
+  const cambios: {
+    id: string;
+    nombre: string;
+    de: string;
+    a: string;
+    at: string;
+  }[] = [];
   let pagesFetched = 0;
-
-  console.log(
-    `Iniciando corrida ${runId} · storage=${storageInfo} · fullScan=${fullScan} · enrichNew=${cfg.enrichNew}`,
-  );
 
   for (const estado of ESTADOS) {
     let page = 1;
@@ -117,7 +124,7 @@ export async function runOnce(): Promise<RunSummary> {
           if (!existing.fotoUrl && c.fotoUrl) existing.fotoUrl = c.fotoUrl;
           if (existing.edad == null && c.edad != null) existing.edad = c.edad;
           if (existing.estado !== estado) {
-            cambiosEstado.push({
+            cambios.push({
               id: c.id,
               nombre: existing.nombre,
               de: existing.estado,
@@ -131,8 +138,6 @@ export async function runOnce(): Promise<RunSummary> {
         }
       }
 
-      // En corridas incrementales, paramos cuando varias páginas seguidas
-      // no traen nada nuevo (la lista está ordenada de más nuevo a más viejo).
       if (!fullScan && !pageChanged) {
         knownStreak++;
         if (knownStreak >= cfg.stopAfterKnownPages) break;
@@ -143,10 +148,8 @@ export async function runOnce(): Promise<RunSummary> {
       page++;
       await sleep(cfg.delayMs);
     }
-    console.log(`  estado=${estado}: hasta página ${page}`);
   }
 
-  // Backfill gradual del detalle de reportes viejos aún sin enriquecer.
   let enriquecidos = 0;
   if (cfg.enrichBatch > 0) {
     const pendientes = Object.values(store)
@@ -159,30 +162,24 @@ export async function runOnce(): Promise<RunSummary> {
     }
   }
 
-  await saveStore(store);
+  await section.saveItems(store);
 
-  const summary: RunSummary = {
+  const summary: DesaparecidosSummary = {
+    section: "desaparecidos",
     runId,
     runAt,
     durationMs: Date.now() - startedAt,
     pagesFetched,
-    totalReports: Object.keys(store).length,
-    nuevos,
-    cambiosEstado,
+    total: Object.keys(store).length,
+    nuevos: nuevos.length,
+    cambios: cambios.length,
     enriquecidos,
   };
 
-  if (nuevos.length > 0 || cambiosEstado.length > 0) {
-    await writeChanges(runId, summary);
+  if (nuevos.length > 0 || cambios.length > 0) {
+    await section.writeChanges(runId, { ...summary, nuevos, cambios });
   }
-  await writeState({
-    lastRunAt: runAt,
-    totalReports: summary.totalReports,
-    lastRunNuevos: nuevos.length,
-    lastRunCambios: cambiosEstado.length,
-    lastRunPaginas: pagesFetched,
-    lastRunDurationMs: summary.durationMs,
-  });
+  await section.writeState(summary);
 
   return summary;
 }

@@ -1,23 +1,47 @@
-import { runOnce } from "./scraper.js";
+import { runDesaparecidos } from "./collectors/desaparecidos.js";
+import { runNoticias } from "./collectors/noticias.js";
+import { runMapa } from "./collectors/mapa.js";
+import { storageInfo } from "./store.js";
 
-runOnce()
-  .then((s) => {
-    console.log(
-      `\n[${s.runAt}] listo en ${(s.durationMs / 1000).toFixed(1)}s ` +
-        `· páginas=${s.pagesFetched} · total=${s.totalReports} ` +
-        `· nuevos=${s.nuevos.length} · cambios=${s.cambiosEstado.length} ` +
-        `· enriquecidos=${s.enriquecidos}`,
-    );
-    for (const n of s.nuevos.slice(0, 25)) {
-      console.log(`  + ${n.nombre} (${n.estado}) — ${n.ubicacion ?? "?"}`);
+const COLLECTORS: Record<string, () => Promise<unknown>> = {
+  desaparecidos: runDesaparecidos,
+  noticias: runNoticias,
+  mapa: runMapa,
+};
+
+async function main(): Promise<void> {
+  const which = (process.env.COLLECTORS ?? "desaparecidos,noticias,mapa")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  console.log(
+    `[${new Date().toISOString()}] storage=${storageInfo} · colectores=${which.join(", ")}`,
+  );
+
+  let failures = 0;
+  for (const name of which) {
+    const fn = COLLECTORS[name];
+    if (!fn) {
+      console.warn(`! colector desconocido: ${name}`);
+      continue;
     }
-    if (s.nuevos.length > 25) console.log(`  … y ${s.nuevos.length - 25} más`);
-    for (const c of s.cambiosEstado) {
-      console.log(`  ~ ${c.nombre}: ${c.de} → ${c.a}`);
+    const t0 = Date.now();
+    try {
+      const summary = await fn();
+      console.log(
+        `✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s): ${JSON.stringify(summary)}`,
+      );
+    } catch (err) {
+      failures++;
+      console.error(`✗ ${name} falló:`, (err as Error).message);
     }
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error("La corrida FALLÓ:", err);
-    process.exit(1);
-  });
+  }
+
+  process.exit(failures > 0 ? 1 : 0);
+}
+
+main().catch((err) => {
+  console.error("Fallo general:", err);
+  process.exit(1);
+});
