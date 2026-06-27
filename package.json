@@ -1,0 +1,23 @@
+{
+  "name": "venezuela-reporta-scraper",
+  "version": "1.0.0",
+  "description": "Recopila reportes de personas desaparecidas de venezuelareporta.org cada hora y los guarda como JSON en un volumen de Railway.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "scrape": "node dist/index.js",
+    "selftest": "node scripts/selftest.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
