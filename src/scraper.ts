@@ -74,6 +74,12 @@ export async function runOnce(): Promise<RunSummary> {
       const cards = html ? parseListing(html) : [];
       if (cards.length === 0) break;
 
+      if (page % 25 === 0) {
+        console.log(
+          `  … ${estado} pág ${page} · acumulado ${Object.keys(store).length} reportes`,
+        );
+      }
+
       let pageChanged = false;
 
       for (const c of cards) {
