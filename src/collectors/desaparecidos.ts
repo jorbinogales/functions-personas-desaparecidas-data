@@ -1,6 +1,6 @@
 import { fetchHtml, sleep } from "../http.js";
 import { BASE_URL, parseDetail, parseListing } from "../parse.js";
-import { Section } from "../store.js";
+import { Section, writeRawSnapshot } from "../store.js";
 import { ESTADOS, type Report } from "../types.js";
 
 const section = new Section("desaparecidos");
@@ -49,7 +49,7 @@ export interface DesaparecidosSummary {
   nuevos: number;
   cambios: number;
   enriquecidos: number;
-  dtvMerged: number;
+  externosMerged: number;
 }
 
 export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
@@ -164,24 +164,38 @@ export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
     }
   }
 
-  // Fusiona la fuente externa dtv (escrita por el colector de navegador) en la
-  // lista unificada. dtv-items.json tiene un único escritor (ese colector), así
+  // Fusiona las fuentes externas (escritas por los colectores de navegador) en la
+  // lista unificada. Cada *-items.json tiene un único escritor (su colector), así
   // que aquí sólo leemos y volcamos en items.json (del que somos único escritor).
-  let dtvMerged = 0;
-  try {
-    const dtv = await section.loadOther<Report>("dtv-items.json");
-    if (dtv) {
-      for (const [id, r] of Object.entries(dtv)) {
+  let externosMerged = 0;
+  for (const file of ["dtv-items.json", "vtb-items.json"]) {
+    try {
+      const ext = await section.loadOther<Report>(file);
+      if (!ext) continue;
+      for (const [id, r] of Object.entries(ext)) {
         const ex = store[id];
         store[id] = ex ? { ...r, firstSeenAt: ex.firstSeenAt } : r;
-        dtvMerged++;
+        externosMerged++;
       }
+    } catch (err) {
+      console.warn(`  ! merge ${file} falló: ${(err as Error).message}`);
     }
-  } catch (err) {
-    console.warn(`  ! merge dtv falló: ${(err as Error).message}`);
   }
 
   await section.saveItems(store);
+
+  // Snapshot crudo COMPLETO de venezuela reporta (todo el dataset de esa fuente,
+  // tomado del store ya cargado — sin re-scrapear).
+  const vrItems = Object.values(store).filter(
+    (r) => !r.id.startsWith("dtv:") && !r.id.startsWith("vtb:"),
+  );
+  if (vrItems.length > 0) {
+    try {
+      await writeRawSnapshot("Venezuela reporta", "desaparecidos", vrItems);
+    } catch (err) {
+      console.warn(`  ! raw snapshot falló: ${(err as Error).message}`);
+    }
+  }
 
   const summary: DesaparecidosSummary = {
     section: "desaparecidos",
@@ -193,7 +207,7 @@ export async function runDesaparecidos(): Promise<DesaparecidosSummary> {
     nuevos: nuevos.length,
     cambios: cambios.length,
     enriquecidos,
-    dtvMerged,
+    externosMerged,
   };
 
   if (nuevos.length > 0 || cambios.length > 0) {

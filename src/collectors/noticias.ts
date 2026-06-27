@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { fetchHtml, sleep } from "../http.js";
 import { BASE_URL, parseNoticias } from "../parse.js";
-import { Section } from "../store.js";
+import { Section, writeRawSnapshot } from "../store.js";
 import type { Noticia } from "../types.js";
 
 const section = new Section("noticias");
@@ -71,6 +71,15 @@ export async function runNoticias(): Promise<NoticiasSummary> {
   }
 
   await section.saveItems(store);
+
+  const noticiasItems = Object.values(store);
+  if (noticiasItems.length > 0) {
+    try {
+      await writeRawSnapshot("Venezuela reporta", "noticias", noticiasItems);
+    } catch (err) {
+      console.warn(`  ! raw snapshot falló: ${(err as Error).message}`);
+    }
+  }
 
   const summary: NoticiasSummary = {
     section: "noticias",

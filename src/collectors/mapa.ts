@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { fetchHtml } from "../http.js";
 import { BASE_URL, parseMapa } from "../parse.js";
-import { Section } from "../store.js";
+import { Section, writeRawSnapshot } from "../store.js";
 import type { MapaPoint } from "../types.js";
 
 const section = new Section("mapa");
@@ -70,6 +70,15 @@ export async function runMapa(): Promise<MapaSummary> {
   }
 
   await section.saveItems(store);
+
+  const mapaItems = Object.values(store);
+  if (mapaItems.length > 0) {
+    try {
+      await writeRawSnapshot("Venezuela reporta", "mapa", mapaItems);
+    } catch (err) {
+      console.warn(`  ! raw snapshot falló: ${(err as Error).message}`);
+    }
+  }
 
   const summary: MapaSummary = {
     section: "mapa",
