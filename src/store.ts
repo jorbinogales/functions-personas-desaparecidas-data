@@ -345,3 +345,87 @@ export async function writeRawSnapshot(
   }
   return { cantidad: items.length };
 }
+
+/** Escribe un snapshot de AGREGADOS a UN target, solo si la firma cambió. */
+async function writeAggregateToTarget(
+  target: SnapTarget,
+  fuente: string,
+  tipo: string,
+  count: number,
+  signature: string,
+  payload: Record<string, unknown>,
+): Promise<{ key?: string; skipped?: string }> {
+  const prefix = `${target.prefix}${fuente}/${tipo}_`;
+  const existing = (await target.backend.list(prefix))
+    .filter((o) => o.key.endsWith(".json"))
+    .sort((a, b) => a.lastModified - b.lastModified);
+  const latest = existing[existing.length - 1];
+  if (latest) {
+    try {
+      const raw = await target.backend.read(latest.key);
+      if (raw) {
+        const meta = JSON.parse(raw) as { signature?: unknown };
+        if (meta.signature === signature) return { skipped: "sin cambios" };
+      }
+    } catch {
+      /* archivo ilegible: escribir igual */
+    }
+  }
+  const now = Date.now();
+  const fecha = new Date(now)
+    .toISOString()
+    .slice(0, 16)
+    .replace("T", "_")
+    .replace(/:/g, "-");
+  const key = `${prefix}${fecha}_${count}_jn.json`;
+  await target.backend.write(
+    key,
+    JSON.stringify({
+      fuente,
+      tipo,
+      extraidoEn: new Date(now).toISOString(),
+      signature,
+      ...payload,
+    }),
+  );
+  return { key };
+}
+
+/**
+ * Snapshot de AGREGADOS (series temporales, no entidades append-only) a TODOS los
+ * destinos. Escribe el payload completo pero solo cuando la `signature` cambió
+ * respecto al último archivo de ese destino (evita duplicados cuando nada cambia).
+ * Nombre: <tipo>_<YYYY-MM-DD_HH-mm>_<count>_jn.json
+ */
+export async function writeAggregateSnapshot(
+  fuente: string,
+  tipo: string,
+  count: number,
+  signature: string,
+  payload: Record<string, unknown>,
+): Promise<{ written: boolean }> {
+  let written = false;
+  for (const target of SNAP_TARGETS) {
+    try {
+      const r = await writeAggregateToTarget(
+        target,
+        fuente,
+        tipo,
+        count,
+        signature,
+        payload,
+      );
+      if (r.key) written = true;
+      console.log(
+        r.key
+          ? `  raw[${target.name}] ${fuente}/${tipo}: snapshot ${count}`
+          : `  raw[${target.name}] ${fuente}/${tipo}: omitido (${r.skipped})`,
+      );
+    } catch (err) {
+      console.warn(
+        `  ! raw[${target.name}] ${fuente}/${tipo} falló: ${(err as Error).message}`,
+      );
+    }
+  }
+  return { written };
+}
