@@ -244,6 +244,31 @@ const snapDate = (key: string): number | null => {
   return m ? Date.parse(`${m[1]}T${m[2]}:${m[3]}:00Z`) : null;
 };
 
+/**
+ * Corte exacto del delta: usa el `extraidoEn` (precisión de ms) guardado dentro
+ * del último snapshot, en vez de la fecha del nombre (precisión de minuto). Así
+ * el siguiente archivo no re-incluye el lote anterior (sin solape). Si el archivo
+ * no se puede leer, cae a la fecha del nombre o al lastModified.
+ */
+async function snapshotCutoff(
+  backend: Backend,
+  latest: { key: string; lastModified: number },
+): Promise<number> {
+  try {
+    const raw = await backend.read(latest.key);
+    if (raw) {
+      const meta = JSON.parse(raw) as { extraidoEn?: unknown };
+      if (typeof meta.extraidoEn === "string") {
+        const t = Date.parse(meta.extraidoEn);
+        if (Number.isFinite(t)) return t;
+      }
+    }
+  } catch {
+    /* archivo ilegible: usar fallback */
+  }
+  return snapDate(latest.key) ?? latest.lastModified;
+}
+
 /** Escribe el delta a UN target (cada bucket mantiene su propio baseline + deltas). */
 async function writeDeltaToTarget(
   target: SnapTarget,
@@ -257,7 +282,7 @@ async function writeDeltaToTarget(
     .sort((a, b) => a.lastModified - b.lastModified);
   const latest = existing[existing.length - 1];
   const now = Date.now();
-  const cutoff = latest ? (snapDate(latest.key) ?? latest.lastModified) : 0;
+  const cutoff = latest ? await snapshotCutoff(target.backend, latest) : 0;
 
   if (latest) {
     const ageH = Math.max(0, now - cutoff) / 3_600_000;
