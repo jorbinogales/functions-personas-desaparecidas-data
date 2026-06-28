@@ -99,6 +99,31 @@ export interface UnidosPoint {
   vigente: boolean;
 }
 
+/**
+ * Una mascota reportada (perdida/encontrada) en mascotasvzla.org. La data viene
+ * directo de su backend Supabase (tabla `reports`).
+ */
+export interface MascotaReport {
+  id: string; // UUID del reporte en Supabase
+  status: string | null; // lost | found
+  species: string | null; // Perro, Gato, ...
+  petName: string | null;
+  color: string | null;
+  place: string | null; // zona / dirección
+  description: string | null;
+  services: string[]; // servicios marcados (puede venir vacío)
+  photoUrl: string | null;
+  contactName: string | null;
+  contact: string | null; // teléfono (dato sensible)
+  lat: number | null;
+  lng: number | null;
+
+  sourceCreatedAt: string | null; // created_at del propio Supabase
+  firstSeenAt: string; // ISO: primera vez que LO vimos nosotros
+  lastSeenAt: string; // ISO: última vez visto
+  vigente: boolean;
+}
+
 /** Un punto de interés del /mapa. */
 export interface MapaPoint {
   id: string; // hash de lat|lng|title

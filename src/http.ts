@@ -38,12 +38,13 @@ export async function fetchHtml(url: string, retries = 3): Promise<string> {
 export async function fetchJson<T = unknown>(
   url: string,
   retries = 3,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, {
-        headers: { "user-agent": USER_AGENT, accept: "application/json" },
+        headers: { "user-agent": USER_AGENT, accept: "application/json", ...extraHeaders },
         signal: AbortSignal.timeout(30_000),
       });
       if (res.status === 429 || res.status >= 500) {

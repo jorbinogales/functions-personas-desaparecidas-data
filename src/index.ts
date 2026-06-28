@@ -3,6 +3,7 @@ import { runNoticias } from "./collectors/noticias.js";
 import { runMapa } from "./collectors/mapa.js";
 import { runUnidos } from "./collectors/unidos.js";
 import { runLocaliza } from "./collectors/localiza.js";
+import { runMascotas } from "./collectors/mascotas.js";
 import { storageInfo } from "./store.js";
 
 const COLLECTORS: Record<string, () => Promise<unknown>> = {
@@ -11,10 +12,11 @@ const COLLECTORS: Record<string, () => Promise<unknown>> = {
   mapa: runMapa,
   unidos: runUnidos,
   localiza: runLocaliza,
+  mascotas: runMascotas,
 };
 
 async function main(): Promise<void> {
-  const which = (process.env.COLLECTORS ?? "desaparecidos,noticias,mapa,unidos,localiza")
+  const which = (process.env.COLLECTORS ?? "desaparecidos,noticias,mapa,unidos,localiza,mascotas")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
